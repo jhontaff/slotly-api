@@ -31,3 +31,10 @@ build/
 
 ### VS Code ###
 .vscode/
+
+
+##Gitignore
+src/main/resources/application-dev.properties
+
+### Graphify ###
+graphify-out/
