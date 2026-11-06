@@ -116,4 +116,72 @@ public class BookingTest {
         assertThat(booking.getStatus()).isEqualTo(BookingStatus.CANCELLED);
     }
 
+    @Test
+    void confirmedBookingCanBeMarkedNoShowAtStartTime() {
+        Booking booking = confirmedBooking();
+        booking.markNoShow(clockAt(START));
+        assertThat(booking.getStatus()).isEqualTo(BookingStatus.NO_SHOW);
+    }
+
+    @Test
+    void cannotMarkNoShowBeforeStart() {
+        Booking booking = confirmedBooking();
+        Clock justBefore = clockAt(START.minusSeconds(1));
+        assertThatThrownBy(() -> booking.markNoShow(justBefore))
+                .isInstanceOf(BookingNotStartedException.class);
+        assertThat(booking.getStatus()).isEqualTo(BookingStatus.CONFIRMED);
+    }
+
+    @Test
+    void cannotMarkNoShowCancelledBooking() {
+        Booking booking = confirmedBooking();
+        booking.cancel(CLOCK);
+        Clock atStart = clockAt(START);
+
+        assertThatThrownBy(() -> booking.markNoShow(atStart))
+                .isInstanceOf(InvalidTransitionException.class);
+        assertThat(booking.getStatus()).isEqualTo(BookingStatus.CANCELLED);
+    }
+
+    @Test
+    void reschedulingKeepsTheDuration() {
+        Booking booking = confirmedBooking();
+        Instant newStart = START.plus(Duration.ofHours(3));
+
+        booking.reschedule(newStart, CLOCK);
+
+        assertThat(booking.getTimeRange()).isEqualTo(new TimeRange(newStart, newStart.plus(HALF_HOUR)));
+    }
+
+    @Test
+    void cannotRescheduleAtStartTime() {
+        Booking booking = confirmedBooking();
+        Instant newStart = START.plus(Duration.ofDays(1));
+        Clock atStart = clockAt(START);
+
+        assertThatThrownBy(() -> booking.reschedule(newStart, atStart))
+                .isInstanceOf(BookingAlreadyStartedException.class);
+        assertThat(booking.getTimeRange().start()).isEqualTo(START);
+    }
+
+    @Test
+    void cannotRescheduleToThePast() {
+        Booking booking = confirmedBooking();
+        Instant past = NOW.minusSeconds(1);
+
+        assertThatThrownBy(() -> booking.reschedule(past, CLOCK))
+                .isInstanceOf(StartNotInFutureException.class);
+        assertThat(booking.getTimeRange().start()).isEqualTo(START);
+    }
+
+    @Test
+    void cannotRescheduleCancelledBooking() {
+        Booking booking = confirmedBooking();
+        booking.cancel(CLOCK);
+        Instant newStart = START.plus(Duration.ofHours(3));
+
+        assertThatThrownBy(() -> booking.reschedule(newStart, CLOCK))
+                .isInstanceOf(InvalidTransitionException.class);
+    }
+
 }

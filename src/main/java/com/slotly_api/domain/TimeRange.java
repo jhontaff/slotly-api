@@ -14,6 +14,10 @@ public record TimeRange(Instant start, Instant end) {
         }
     }
 
+    public Duration duration() {
+        return Duration.between(start, end);
+    }
+
     public static TimeRange of(Instant start, Duration duration) {
         return new TimeRange(start, start.plus(duration));
     }

@@ -6,6 +6,8 @@ import com.slotly_api.domain.exceptions.InvalidTransitionException;
 import com.slotly_api.domain.exceptions.StartNotInFutureException;
 
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 
 public final class Booking {
@@ -32,19 +34,15 @@ public final class Booking {
     }
 
     public static Booking create(BookingRequest request, Clock clock) {
-        if (!request.start().isAfter(clock.instant())) {
-            throw new StartNotInFutureException("Start time must be in the future");
-        }
-
+        requireFuture(request.start(), clock);
         TimeRange timeRange = TimeRange.of(request.start(), request.duration());
-
         return new Booking(UUID.randomUUID(), request, timeRange, BookingStatus.CONFIRMED);
 
     }
 
     public void cancel(Clock clock) {
         requireConfirmed("cancelled");
-        requireNotStarted(clock);
+        requireNotStarted("cancel", clock);
         status = BookingStatus.CANCELLED;
     }
 
@@ -52,6 +50,26 @@ public final class Booking {
         requireConfirmed("completed");
         requireStarted("complete", clock);
         status = BookingStatus.COMPLETED;
+    }
+
+    public void markNoShow(Clock clock) {
+        requireConfirmed("marked as no-show");
+        requireStarted("mark as no-show", clock);
+        status = BookingStatus.NO_SHOW;
+    }
+
+    public void reschedule(Instant newStart, Clock clock) {
+        requireConfirmed("rescheduled");
+        requireNotStarted("reschedule", clock);
+        requireFuture(newStart, clock);
+        timeRange = TimeRange.of(newStart, timeRange.duration());
+    }
+
+
+    private static void requireFuture(Instant start, Clock clock) {
+        if (!start.isAfter(clock.instant())) {
+            throw new StartNotInFutureException("Start time must be in the future");
+        }
     }
 
     private void requireConfirmed(String action) {
@@ -66,9 +84,9 @@ public final class Booking {
         }
     }
 
-    private void requireNotStarted(Clock clock) {
+    private void requireNotStarted(String action, Clock clock) {
         if (!timeRange.start().isAfter(clock.instant())) {
-            throw new BookingAlreadyStartedException("Cannot cancel a booking that has already started");
+            throw new BookingAlreadyStartedException("Cannot " + action + " a booking that has already started");
         }
     }
 
