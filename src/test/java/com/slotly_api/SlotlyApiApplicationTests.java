@@ -15,9 +15,13 @@ class SlotlyApiApplicationTests {
 	private JdbcTemplate jdbcTemplate;
 
 	@Test
-	void flywayCreatesTheBookingTable() {
-		Integer rows = jdbcTemplate.queryForObject("select count(*) from booking", Integer.class);
-		assertThat(rows).isZero();
+	void flywayCreatesTheSchema() {
+		assertThat(tableExists("booking")).isTrue();
+		assertThat(tableExists("provider")).isTrue();
+	}
+
+	private boolean tableExists(String table) {
+		return Boolean.TRUE.equals(jdbcTemplate.queryForObject("select to_regclass(?) is not null", Boolean.class, table));
 	}
 
 }

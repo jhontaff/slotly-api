@@ -6,7 +6,6 @@ import com.slotly_api.domain.exceptions.InvalidTransitionException;
 import com.slotly_api.domain.exceptions.StartNotInFutureException;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 

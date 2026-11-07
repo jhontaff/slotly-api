@@ -1,9 +1,6 @@
 package com.slotly_api.adapter.in.web;
 
-import com.slotly_api.domain.exceptions.BookingAlreadyStartedException;
-import com.slotly_api.domain.exceptions.BookingNotStartedException;
-import com.slotly_api.domain.exceptions.InvalidTransitionException;
-import com.slotly_api.domain.exceptions.StartNotInFutureException;
+import com.slotly_api.domain.exceptions.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -31,6 +28,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(BookingNotStartedException.class)
     ProblemDetail handleBookingNotStarted(BookingNotStartedException ex) {
         return badRequest(ex, "BOOKING_NOT_STARTED");
+    }
+
+    @ExceptionHandler(SlotUnavailableException.class)
+    ProblemDetail handleSlotUnavailable(SlotUnavailableException ex) {
+        return conflict(ex, "SLOT_UNAVAILABLE");
+    }
+
+    @ExceptionHandler(ProviderNotFoundException.class)
+    ProblemDetail handleProviderNotFound(ProviderNotFoundException ex) {
+        return badRequest(ex, "PROVIDER_NOT_FOUND");
     }
 
     private ProblemDetail conflict(RuntimeException ex, String code) {
