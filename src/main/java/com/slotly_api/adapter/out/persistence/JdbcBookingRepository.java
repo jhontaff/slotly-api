@@ -6,6 +6,7 @@ import com.slotly_api.domain.BookingStatus;
 import com.slotly_api.domain.Cancellation;
 import com.slotly_api.domain.TimeRange;
 import com.slotly_api.domain.exceptions.BookingNotFoundException;
+import com.slotly_api.domain.exceptions.IdempotencyKeyReusedException;
 import com.slotly_api.domain.exceptions.SlotUnavailableException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -30,6 +31,8 @@ public class JdbcBookingRepository implements BookingRepository {
     private static final String PARAM_START = "start";
     private static final String PARAM_END = "end";
     private static final String STATUS = "status";
+    private static final String UNIQUE_VIOLATION = "23505";
+    private static final String IDEMPOTENCY_CONSTRAINT = "uq_booking_idempotency";
 
     private final JdbcClient jdbc;
 
@@ -124,6 +127,25 @@ public class JdbcBookingRepository implements BookingRepository {
         }
     }
 
+    @Override
+    public Optional<Booking> findByIdempotencyKey(UUID businessId, UUID customerId, String idempotencyKey) {
+        return jdbc.sql("""
+            select id, business_id, provider_id, customer_id, offering_id, idempotency_key,
+                   start_at, end_at, status, cancelled_at, late_cancellation
+            from booking
+            where business_id = :businessId
+              and customer_id = :customerId
+              and idempotency_key = :idempotencyKey
+            """)
+                .param("businessId", businessId)
+                .param("customerId", customerId)
+                .param("idempotencyKey", idempotencyKey)
+                .query(JdbcBookingRepository::toBooking)
+                .optional();
+    }
+
+
+
     private static Booking toBooking(ResultSet rs, int rowNum) throws SQLException {
         OffsetDateTime cancelledAt = rs.getObject("cancelled_at", OffsetDateTime.class);
         Cancellation cancellation = cancelledAt == null
@@ -151,9 +173,19 @@ public class JdbcBookingRepository implements BookingRepository {
     }
 
     private static RuntimeException translate(DataIntegrityViolationException e) {
-        return isOverlapViolation(e)
-                ? new SlotUnavailableException("The slot is no longer available")
-                : e;
+        if (isOverlapViolation(e)) {
+            return new SlotUnavailableException("The slot is no longer available");
+        }
+        if (isIdempotencyViolation(e)) {
+            return new IdempotencyKeyReusedException();
+        }
+        return e;
+    }
+
+    private static boolean isIdempotencyViolation(DataIntegrityViolationException e) {
+        return e.getMostSpecificCause() instanceof SQLException sql
+                && UNIQUE_VIOLATION.equals(sql.getSQLState())
+                && String.valueOf(sql.getMessage()).contains(IDEMPOTENCY_CONSTRAINT);
     }
 
     private static boolean isOverlapViolation(DataIntegrityViolationException e) {

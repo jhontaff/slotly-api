@@ -100,6 +100,12 @@ public final class Booking {
         timeRange = TimeRange.of(newStart, timeRange.duration());
     }
 
+    public boolean isSameRequest(BookingRequest request) {
+        return providerId.equals(request.providerId())
+                && offeringId.equals(request.offeringId())
+                && timeRange.equals(TimeRange.of(request.start(), request.duration()));
+    }
+
     private static void requireFuture(Instant start, Clock clock) {
         if (!start.isAfter(clock.instant())) {
             throw new StartNotInFutureException("Start time must be in the future");

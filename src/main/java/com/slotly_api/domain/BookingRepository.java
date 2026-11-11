@@ -27,4 +27,6 @@ public interface BookingRepository {
      *         non-cancelled booking of the same provider
      */
     void update(Booking booking);
+
+    Optional<Booking> findByIdempotencyKey(UUID businessId, UUID customerId, String idempotencyKey);
 }

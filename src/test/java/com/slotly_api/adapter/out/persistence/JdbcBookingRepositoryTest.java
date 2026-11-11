@@ -8,6 +8,7 @@ import com.slotly_api.domain.Booking;
 import com.slotly_api.domain.BookingRepository;
 import com.slotly_api.domain.BookingRequest;
 import com.slotly_api.domain.exceptions.BookingNotFoundException;
+import com.slotly_api.domain.exceptions.IdempotencyKeyReusedException;
 import com.slotly_api.domain.exceptions.SlotUnavailableException;
 import java.time.Clock;
 import java.time.Duration;
@@ -110,4 +111,23 @@ class JdbcBookingRepositoryTest {
         assertThatThrownBy(() -> bookings.update(neverSaved))
                 .isInstanceOf(BookingNotFoundException.class);
     }
+
+    @Test
+    void uniqueConstraintRejectsTheSameKeyForAnotherProvider() {
+        UUID otherProviderId = UUID.randomUUID();
+        jdbcTemplate.update("insert into provider (id, business_id) values (?, ?)", otherProviderId, businessId);
+        UUID customerId = UUID.randomUUID();
+        UUID offeringId = UUID.randomUUID();
+        Booking first = Booking.create(new BookingRequest(
+                        businessId, providerId, customerId, offeringId, "same-key", tenAm, Duration.ofMinutes(30)),
+                Clock.systemUTC());
+        Booking second = Booking.create(new BookingRequest(
+                        businessId, otherProviderId, customerId, offeringId, "same-key", tenAm, Duration.ofMinutes(30)),
+                Clock.systemUTC());
+        bookings.save(first);
+
+        assertThatThrownBy(() -> bookings.save(second))
+                .isInstanceOf(IdempotencyKeyReusedException.class);
+    }
+
 }

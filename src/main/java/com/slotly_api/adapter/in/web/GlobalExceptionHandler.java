@@ -35,6 +35,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return conflict(ex, "SLOT_UNAVAILABLE");
     }
 
+    @ExceptionHandler(IdempotencyKeyReusedException.class)
+    ProblemDetail handleIdempotencyKeyReused(IdempotencyKeyReusedException ex) {
+        return problem(HttpStatus.UNPROCESSABLE_CONTENT, ex, "IDEMPOTENCY_KEY_REUSED");
+    }
+
     @ExceptionHandler(ProviderNotFoundException.class)
     ProblemDetail handleProviderNotFound(ProviderNotFoundException ex) {
         return badRequest(ex, "PROVIDER_NOT_FOUND");

@@ -114,12 +114,18 @@ public class BookingTest {
     @Test
     void restoreRejectsACancelledBookingWithoutCancellationDetails() {
         TimeRange range = new TimeRange(START, START.plus(HALF_HOUR));
+        UUID id = UUID.randomUUID();
+        UUID tenantId = UUID.randomUUID();
+        UUID providerId = UUID.randomUUID();
+        UUID serviceId = UUID.randomUUID();
+        UUID customerId = UUID.randomUUID();
 
         assertThatThrownBy(() -> Booking.restore(
-                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
-                UUID.randomUUID(), "key-1", range, BookingStatus.CANCELLED, null))
+                id, tenantId, providerId, serviceId, customerId,
+                "key-1", range, BookingStatus.CANCELLED, null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
 
     @Test
     void confirmedBookingCanBeCompletedAtStartTime() {
@@ -217,6 +223,26 @@ public class BookingTest {
 
         assertThatThrownBy(() -> booking.reschedule(newStart, CLOCK))
                 .isInstanceOf(InvalidTransitionException.class);
+    }
+
+    @Test
+    void recognisesARetryOfTheSameRequest() {
+        BookingRequest request = request(START);
+        Booking booking = Booking.create(request, CLOCK);
+
+        assertThat(booking.isSameRequest(request)).isTrue();
+    }
+
+    @Test
+    void aDifferentStartIsNotTheSameRequest() {
+        BookingRequest original = request(START);
+        Booking booking = Booking.create(original, CLOCK);
+        BookingRequest moved = new BookingRequest(
+                original.businessId(), original.providerId(), original.customerId(),
+                original.offeringId(), original.idempotencyKey(),
+                START.plus(Duration.ofHours(1)), HALF_HOUR);
+
+        assertThat(booking.isSameRequest(moved)).isFalse();
     }
 
 }
