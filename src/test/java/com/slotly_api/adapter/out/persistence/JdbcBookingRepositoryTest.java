@@ -7,10 +7,12 @@ import com.slotly_api.TestcontainersConfiguration;
 import com.slotly_api.domain.Booking;
 import com.slotly_api.domain.BookingRepository;
 import com.slotly_api.domain.BookingRequest;
+import com.slotly_api.domain.exceptions.BookingNotFoundException;
 import com.slotly_api.domain.exceptions.SlotUnavailableException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -68,5 +70,44 @@ class JdbcBookingRepositoryTest {
         Integer saved = jdbcTemplate.queryForObject(
                 "select count(*) from booking where provider_id = ?", Integer.class, providerId);
         assertThat(saved).isEqualTo(2);
+    }
+
+    @Test
+    void findByIdReturnsTheSavedBooking() {
+        Booking saved = booking(0, 30);
+        bookings.save(saved);
+
+        assertThat(bookings.findById(saved.getId()))
+                .get()
+                .usingRecursiveComparison()
+                .isEqualTo(saved);
+    }
+
+    @Test
+    void findByIdIsEmptyForAnUnknownId() {
+        assertThat(bookings.findById(UUID.randomUUID())).isEmpty();
+    }
+
+    @Test
+    void updateStoresTheCancellationAndFindByIdReadsItBack() {
+        Booking booking = booking(0, 30);
+        bookings.save(booking);
+        Instant cancelledAt = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+        booking.cancel(Clock.fixed(cancelledAt, ZoneOffset.UTC), Duration.ofHours(2));
+
+        bookings.update(booking);
+
+        assertThat(bookings.findById(booking.getId()))
+                .get()
+                .usingRecursiveComparison()
+                .isEqualTo(booking);
+    }
+
+    @Test
+    void updatingAnUnknownBookingFails() {
+        Booking neverSaved = booking(0, 30);
+
+        assertThatThrownBy(() -> bookings.update(neverSaved))
+                .isInstanceOf(BookingNotFoundException.class);
     }
 }

@@ -40,18 +40,24 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return badRequest(ex, "PROVIDER_NOT_FOUND");
     }
 
+    @ExceptionHandler(BookingNotFoundException.class)
+    ProblemDetail handleBookingNotFound(BookingNotFoundException ex) {
+        return problem(HttpStatus.NOT_FOUND, ex, "BOOKING_NOT_FOUND");
+    }
+
     private ProblemDetail conflict(RuntimeException ex, String code) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
-        problem.setProperty("code", code);
-        return problem;
+        return problem(HttpStatus.CONFLICT, ex, code);
     }
 
     private ProblemDetail badRequest(RuntimeException ex, String code) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        return problem(HttpStatus.BAD_REQUEST, ex, code);
+    }
+
+    private ProblemDetail problem(HttpStatus status, RuntimeException ex, String code) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, ex.getMessage());
         problem.setProperty("code", code);
         return problem;
     }
-
 
 }
 

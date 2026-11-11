@@ -6,7 +6,10 @@ import com.slotly_api.domain.exceptions.InvalidTransitionException;
 import com.slotly_api.domain.exceptions.StartNotInFutureException;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 public final class Booking {
@@ -20,29 +23,62 @@ public final class Booking {
 
     private TimeRange timeRange;
     private BookingStatus status;
+    private Cancellation cancellation; // present only when status is CANCELLED
 
-    private Booking(UUID id, BookingRequest request, TimeRange timeRange, BookingStatus status) {
-        this.id = id;
-        this.businessId = request.businessId();
-        this.providerId = request.providerId();
-        this.customerId = request.customerId();
-        this.offeringId = request.offeringId();
-        this.idempotencyKey = request.idempotencyKey();
-        this.timeRange = timeRange;
-        this.status = status;
+    // One parameter per field: the aggregate has 9 fields and this is the single place that sets them all.
+    @SuppressWarnings("java:S107")
+    private Booking(UUID id, UUID businessId, UUID providerId, UUID customerId, UUID offeringId,
+                    String idempotencyKey, TimeRange timeRange, BookingStatus status,
+                    Cancellation cancellation) {
+        this.id = Objects.requireNonNull(id, "id");
+        this.businessId = Objects.requireNonNull(businessId, "businessId");
+        this.providerId = Objects.requireNonNull(providerId, "providerId");
+        this.customerId = Objects.requireNonNull(customerId, "customerId");
+        this.offeringId = Objects.requireNonNull(offeringId, "offeringId");
+        this.idempotencyKey = Objects.requireNonNull(idempotencyKey, "idempotencyKey");
+        this.timeRange = Objects.requireNonNull(timeRange, "timeRange");
+        this.status = Objects.requireNonNull(status, "status");
+        this.cancellation = cancellation;
+
+        if ((status == BookingStatus.CANCELLED) != (cancellation != null)) {
+            throw new IllegalArgumentException(
+                    "A booking has cancellation details if and only if it is cancelled");
+        }
     }
 
     public static Booking create(BookingRequest request, Clock clock) {
         requireFuture(request.start(), clock);
-        TimeRange timeRange = TimeRange.of(request.start(), request.duration());
-        return new Booking(UUID.randomUUID(), request, timeRange, BookingStatus.CONFIRMED);
-
+        return new Booking(
+                UUID.randomUUID(),
+                request.businessId(),
+                request.providerId(),
+                request.customerId(),
+                request.offeringId(),
+                request.idempotencyKey(),
+                TimeRange.of(request.start(), request.duration()),
+                BookingStatus.CONFIRMED,
+                null);
     }
 
-    public void cancel(Clock clock) {
+    @SuppressWarnings("java:S107")
+    public static Booking restore(UUID id, UUID businessId, UUID providerId, UUID customerId,
+                                  UUID offeringId, String idempotencyKey, TimeRange timeRange,
+                                  BookingStatus status, Cancellation cancellation) {
+        return new Booking(id, businessId, providerId, customerId, offeringId,
+                idempotencyKey, timeRange, status, cancellation);
+    }
+
+
+    public void cancel(Clock clock, Duration lateWindow) {
+        Objects.requireNonNull(lateWindow, "lateWindow");
         requireConfirmed("cancelled");
         requireNotStarted("cancel", clock);
+
+        Instant now = clock.instant();
+        boolean late = now.isAfter(timeRange.start().minus(lateWindow));
+
         status = BookingStatus.CANCELLED;
+        cancellation = new Cancellation(now, late);
     }
 
     public void complete(Clock clock) {
@@ -63,7 +99,6 @@ public final class Booking {
         requireFuture(newStart, clock);
         timeRange = TimeRange.of(newStart, timeRange.duration());
     }
-
 
     private static void requireFuture(Instant start, Clock clock) {
         if (!start.isAfter(clock.instant())) {
@@ -119,5 +154,9 @@ public final class Booking {
 
     public BookingStatus getStatus() {
         return status;
+    }
+
+    public Optional<Cancellation> getCancellation() {
+        return Optional.ofNullable(cancellation);
     }
 }
